@@ -1,9 +1,5 @@
-% MMI 502 Lab 7 - Seth Hochberg
+% Based on MMI 502 Lab 7 - Seth Hochberg
 % https://github.com/sethhochberg/matlab_granular_synthesis/blob/master/Lab7.m
-% break granular synth into steps
-% framesize/grainsize 1/20 why?
-% use same numframes~~~~
-% 1 - numframes
 
 %speeds, phases, volume, and frequency,
 
@@ -38,6 +34,19 @@
 % How many grains per second - this will be a function of grain
 % duration,spacing, and output length
 
+%%%%%%%%%% Post-grain attenuation %%%%%%%%%%%%
+%   Spray
+%   randomises the grain start position. The spray parameter
+%   determines how far from the start position the sound can possibly move
+%   
+%   Amplitude Modulation
+%   Controls the gain (amplitude) of each grain via a random number multiplier/function
+%
+%   
+
+
+
+
 % today - granulator functional with basic parameters
 % 17/9 - theory of granular and set of (attenuation) parameters for both
 % grain manipulation and output
@@ -55,9 +64,15 @@
 %if < +/-0.005, trim
 signal = signal( signal(:,1) < -0.0002 | signal(:,1) > 0.0002, :);
 signal2 = signal2( signal2(:,1) < -0.0002 | signal2(:,1) > 0.0002, :);
+figure;plot(signal);
+figure;plot(signal2);
 
+% audioplayer is better, will need to implement 'playblocking' to ensure
+% only one sound plays at a time.
+player = audioplayer(signal,fs);
+play(player);
 
-soundsc(signal, fs);
+%soundsc(signal, fs);
 pause(4);
 soundsc(signal2, fs);
 pause(4);
@@ -77,8 +92,8 @@ outputLength = ceil(outputLengthInput/framesize) * framesize;
 grainSpace = 500;
 grainSpace2 = 500;
 
-numframes = floor(((endpos + hopsize) / hopsize)); %total samples - frame
-numframes2 = floor(((endpos2 - framesize + hopsize) / hopsize) / 3);
+numframes = floor(((endpos-startpos - framesize + hopsize) / hopsize)); %total samples - frame
+numframes2 = floor((endpos2-startpos2 - framesize + hopsize) / hopsize);
 
 framematrix = zeros(framesize,outputLength);
 framematrix2 = zeros(framesize,outputLength);
@@ -125,7 +140,12 @@ for currentframe = 1:numframes2
         newsignal2(signalindex) = newsignal2(signalindex) + framematrix2(:,(numframes2-currentframe)+1)';
 end
 
-newsignal2 = nonzeros(newsignal2(1,:));
+%remove trailing zeros from newsignals
+newsignal = newsignal(newsignal~=0); 
+newsignal2 = newsignal2(newsignal2~=0);
+
+figure;plot(newsignal);
+figure;plot(newsignal2);
 
 newsignalRepeat = repmat(newsignal,1,ceil(outputLength/length(newsignal)));
 newsignalRepeat = newsignalRepeat(:,1:outputLength);
