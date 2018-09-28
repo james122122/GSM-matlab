@@ -98,8 +98,17 @@ outputLengthInput = 400000;
 outputLength = ceil(outputLengthInput);
 
 %divide spray level by 2 so that can take from both sides of grain
-sprayFlag = 1; %spray enabled 1 disabled 0
-sprayLevel = 0.5 / 2; % 1 < x < 100
+sprayFlag1 = 1; %spray enabled 1 disabled 0
+sprayLevel1 = 0.5; % 0 (no spray) < sprayLevel1 < 0.5 (full spray)
+sprayFlag2 = 1;
+sprayLevel2 = 0.5;
+%this level is multiplied by a rand value, could also be skewed to increase
+%spray
+
+AMFlag1 = 0;
+AMLevel1 = 50; % 50% Amplitude Modulation
+AMFlag2 = 0;
+AMLevel2 = 50; % 50% Amplitude Modulation
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -122,17 +131,13 @@ newsignal2 = rebuild_frames(newsignal2, framematrix2, numframes2, hopsize, frame
 newsignal = newsignal(newsignal~=0); 
 newsignal2 = newsignal2(newsignal2~=0);
 
-%add trailing zeros equal to grainspacing
-newsignal = [newsignal zeros(1, grainSpace)];
-newsignal2 = [newsignal2 zeros(1, grainSpace2)];
-
-figure; plot(newsignal);
-figure; plot(newsignal2);
-
 % needs to be 'generate signal' -> continually run attenuation on signal
 % until length of outputLength
-signalOutput = generateSignal(newsignal, outputLength, sprayFlag, sprayLevel);
-signalOutput2 = generateSignal(newsignal2, outputLength, sprayFlag, sprayLevel);
+signalOutput = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, AMFlag1, AMLevel1);
+signalOutput2 = generateSignal(newsignal2, grainSpace2, outputLength, sprayFlag2, sprayLevel2, AMFlag2, AMLevel2);
+
+%parametricMorphing(signalOutput, signalOutput2, sprayFlag1, sprayFlag2,
+%sprayLevel2, sprayLevel2, AMFlag1, AMFlag2, AMLevel1, AMLevel2);
 
 figure;
 subplot(211);
@@ -158,13 +163,12 @@ title('Random');
 player = audioplayer(signalOutput2,fs);
 playblocking(player);
 
+outputSignal = morphSignals(signalOutput, signalOutput2, outputLength);
 
-%add two signals together...
-%{
-for i = 1:length(newsignal)
-    newsignal2(:,i) = (newsignal2(:,i) + newsignal(:,i)) / 2;
-end
-%}
+player = audioplayer(outputSignal, fs);
+playblocking(player);
+
+figure; plot(outputSignal);
 
 %wavwrite(newsignal, fs, 'trumpted_recombined_randomized.wav');
 
@@ -172,7 +176,6 @@ for currentframe = 1:numframes
         signalindex = (currentframe-1)*hopsize+1:(currentframe-1)*hopsize+framesize;
         newsignal(signalindex) = newsignal(signalindex) + framematrix(:,(numframes-currentframe)+1)'; %starts from last
 end
-
 
 %this function is used to remove whitespace - zero values, and values inside of
 %threshhold absolute value
@@ -216,34 +219,86 @@ function [newsignal] = randomise_frames(newsignal, framematrix, numframes, hopsi
     end % mod used to repeat signal...
 end
 
-%repeat the signals until outputLength is reached
-function [outputSignal] = generateSignal(newsignal, outputLength, sprayFlag, sprayLevel)
-    %newsignalRepeat = repmat(newsignal,1,ceil(outputLength/length(newsignal)));
-    %newsignalRepeat = newsignalRepeat(:,1:outputLength);
+%repeat the grain and apply attenuation throughout until outputLength is reached
+function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, AMFlag1, AMLevel1)
+
+    i = 1;
+    outputSignal = zeros(1, outputLength);
     
-    signalIndex = 1;
-    while (signalIndex < outputLength)
-       if sprayFlag == 1
-           tempSignal = attenuateSpray(tempSignal, sprayLevel)
-       else
-           tempSignal = newsignal; 
+    while(i <= outputLength)
+       tempSignal = newsignal;
+       
+       
+       %%%% apply attenuation parameters
+       if sprayFlag1 == 1
+          tempSignal = attenuateSpray(tempSignal, sprayLevel1);
        end
-       if (signalIndex + length(tempSignal)) > outputLength
-           outputSignal = zeros(1, length(tempSignal));
-           outputSignal(signalIndex) = outputSignal(signalIndex) + tempSignal(1, signalIndex : outputLength);
-           signalIndex = outputLength;
-       else
-           outputSignal = zeros(1, length(tempSignal));
-           outputSignal(signalIndex) = [outputSignal(signalIndex) tempSignal(length(tempSignal))];
-           signalIndex = signalIndex + length(tempSignal);
+       
+       if AMFlag1 == 1
+           tempSignal = attenuateAM(tempSignal, AMLevel1);
        end
+       
+        %add trailing zeros equal to grainspacing
+        tempSignal = [tempSignal zeros(1, grainSpace)];
+        
+        figure; plot(tempSignal);
+        
+       for j = 1:length(tempSignal)
+          outputSignal(1, i) = tempSignal(1, j);
+          i = i + 1;
+          if (i >= outputLength + 1)
+              break;
+          end
+       end
+       
+       
     end
 end
 
 %function spray
-function [spraySignal] = attenuateSpray(newsignal, sprayLevel)
-    a = rand * sprayLevel;
-    b = rand * sprayLevel;
+function [spraySignal] = attenuateSpray(tempSignal, sprayLevel1)
+
+    a = rand;
+    b = rand;
+    while(a > sprayLevel1)
+        a = rand;
+    end
+    while(b > sprayLevel1)
+        b = rand;
+    end
     %this variable is returning nothing...
-    spraySignal = newsignal(1, 1 + floor((a * length(newsignal))) : floor(length(newsignal) - (b * length(newsignal))));
+    spraySignal = tempSignal(1, 1 + floor((a * length(tempSignal))) : floor(length(tempSignal) - (b * length(tempSignal))));
+end
+
+%Amplitude Modulation
+%%not working correctly at this point
+function [AMSignal] = attenuateAM(tempSignal, AMLevel1)
+    
+    for i = 1:length(tempSignal)
+        a = rand;
+        while(a > AMLevel1) % a must be less than critical value
+            a = rand;
+        end
+        tempSignal(1, i) = tempSignal(1, i) * a;
+    end
+    
+    AMSignal = tempSignal;
+    
+end
+
+%morph the two signals using simple summation
+function [outputSignal] = morphSignals(signal1, signal2, outputLength)
+    outputSignal = zeros(1, outputLength);
+    %add two signals to outputSignal, and divide by 2..
+    for i = 1:length(signal1)
+        outputSignal(:, i) = outputSignal(:, i) + signal1(:, i);
+    end
+    
+    for i = 1:length(signal2)
+        outputSignal(:, i) = outputSignal(:, i) + signal2(:, i);
+    end
+    
+    for i = 1:outputLength
+        outputSignal(:, i) = outputSignal(:, i) / 2;
+    end
 end
