@@ -6,6 +6,8 @@
 % Supervisor: Dr. Eva Cheng
 % Base dervied from MMI 502 Lab 7 - Seth Hochberg
 % https://github.com/sethhochberg/matlab_granular_synthesis/blob/master/Lab7.m
+% program uses old wavread function which requires an include, and the
+% Matlab Communications System Toolbox must be installed for FM Modulation
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -105,10 +107,15 @@ sprayLevel2 = 0.5;
 %this level is multiplied by a rand value, could also be skewed to increase
 %spray
 
-AMFlag1 = 0;
-AMLevel1 = 50; % 50% Amplitude Modulation
-AMFlag2 = 0;
-AMLevel2 = 50; % 50% Amplitude Modulation
+AMFlag1 = 1;
+AMLevel1 = 50 / 100; % 50% Amplitude Modulation
+AMFlag2 = 1;
+AMLevel2 = 50 / 100; % 50% Amplitude Modulation
+
+FMFlag1 = 0;
+FMLevel1 = 50 / 100; % 50% Frequency Modulation
+FMFlag2 = 0;
+FMLevel2 = 50 / 100; % 50% Frequency Modulation
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -133,8 +140,8 @@ newsignal2 = newsignal2(newsignal2~=0);
 
 % needs to be 'generate signal' -> continually run attenuation on signal
 % until length of outputLength
-signalOutput = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, AMFlag1, AMLevel1);
-signalOutput2 = generateSignal(newsignal2, grainSpace2, outputLength, sprayFlag2, sprayLevel2, AMFlag2, AMLevel2);
+signalOutput = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, AMFlag1, AMLevel1, FMFlag1);
+signalOutput2 = generateSignal(newsignal2, grainSpace2, outputLength, sprayFlag2, sprayLevel2, AMFlag2, AMLevel2, FMFlag2);
 
 %parametricMorphing(signalOutput, signalOutput2, sprayFlag1, sprayFlag2,
 %sprayLevel2, sprayLevel2, AMFlag1, AMFlag2, AMLevel1, AMLevel2);
@@ -220,7 +227,7 @@ function [newsignal] = randomise_frames(newsignal, framematrix, numframes, hopsi
 end
 
 %repeat the grain and apply attenuation throughout until outputLength is reached
-function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, AMFlag1, AMLevel1)
+function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, AMFlag1, AMLevel1, FMFlag1)
 
     i = 1;
     outputSignal = zeros(1, outputLength);
@@ -238,10 +245,14 @@ function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sp
            tempSignal = attenuateAM(tempSignal, AMLevel1);
        end
        
+       if FMFlag1 == 1
+           tempSignal = attenuateFM(tempSignal);
+       end
+       
         %add trailing zeros equal to grainspacing
         tempSignal = [tempSignal zeros(1, grainSpace)];
         
-        figure; plot(tempSignal);
+        %figure; plot(tempSignal);
         
        for j = 1:length(tempSignal)
           outputSignal(1, i) = tempSignal(1, j);
@@ -270,19 +281,27 @@ function [spraySignal] = attenuateSpray(tempSignal, sprayLevel1)
     spraySignal = tempSignal(1, 1 + floor((a * length(tempSignal))) : floor(length(tempSignal) - (b * length(tempSignal))));
 end
 
-%Amplitude Modulation
-%%not working correctly at this point
-function [AMSignal] = attenuateAM(tempSignal, AMLevel1)
-    
-    for i = 1:length(tempSignal)
+%Amplitude Modulation - the amplitude of grains is randomly varied based on
+%AMLevel
+function [AMSignal] = attenuateAM(tempSignal, AMLevel)
+    a = rand;
+    while(a > AMLevel) % a must be less than critical value
         a = rand;
-        while(a > AMLevel1) % a must be less than critical value
-            a = rand;
-        end
+    end
+        
+    for i = 1:length(tempSignal)
         tempSignal(1, i) = tempSignal(1, i) * a;
     end
     
     AMSignal = tempSignal;
+end
+
+function [FMSignal] = attenuateFM(tempSignal)   
+    
+    Fc = 1e3;         % carrier = 1MHz
+    FS = 2.2*Fc;      % sampling frequency for output signal
+    deviation = 1e2; % freq. deviation   
+    FMSignal = fmmod(tempSignal, Fc, FS, deviation); %matlab frequency modulation function
     
 end
 
