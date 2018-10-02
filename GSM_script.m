@@ -51,7 +51,6 @@
 %   Amplitude Modulation
 %   Controls the gain (amplitude) of each grain via a random number multiplier/function
 %
-%   
 
 % today - granulator functional with basic parameters
 % 17/9 - theory of granular and set of (attenuation) parameters for both
@@ -66,8 +65,14 @@
 [signal fs bitdepth] = wavread('violin-a4.wav'); % [sample data - sample rate - number of bits per sample]
 [signal2 fs bitdepth] = wavread('trumpet.wav'); % [sample data - sample rate - number of bits per sample]
 
+%%%%%% need to normalise the signals
+% amplitude normalisation - divide by the maximum
+%signal = ampNormalise(signal); % not working at the moment. stuck on
+%division loop
+%signal2 = ampNormalise(signal2);
+
 %need to trim zeros from beginning + end when reading signals AND adjust
-signal = remove_low_vals(signal);
+signal = remove_low_vals(signal); % add threshhold value
 signal2 = remove_low_vals(signal2);
 
 % audioplayer is better, will need to implement 'playblocking' to ensure
@@ -96,7 +101,7 @@ grainSpace2 = 500; % should not be too large or will exceed array bounds..
 numframes = floor(((endpos-startpos - framesize + hopsize) / hopsize)); %total samples - frame
 numframes2 = floor((endpos2-startpos2 - framesize + hopsize) / hopsize);
 
-outputLengthInput = 400000;
+outputLengthInput = 400000; %output length of granular synthesis
 outputLength = ceil(outputLengthInput);
 
 %divide spray level by 2 so that can take from both sides of grain
@@ -107,9 +112,9 @@ sprayLevel2 = 0.5;
 %this level is multiplied by a rand value, could also be skewed to increase
 %spray
 
-AMFlag1 = 1;
+AMFlag1 = 0;
 AMLevel1 = 50 / 100; % 50% Amplitude Modulation
-AMFlag2 = 1;
+AMFlag2 = 0;
 AMLevel2 = 50 / 100; % 50% Amplitude Modulation
 
 FMFlag1 = 0;
@@ -188,6 +193,25 @@ end
 %threshhold absolute value
 function [out_signal] = remove_low_vals(signal)
     out_signal = signal( signal(:,1) < -0.0002 | signal(:,1) > 0.0002, :);
+    %find cofrect values and []
+end
+
+function [out_signal] = ampNormalise(tempSignal)
+    %find maxval in signal
+    out_signal = zeros(1, length(tempSignal));
+    
+    maxVal = max(tempSignal(1,:));
+    %for i = 1:length(tempSignal)
+    %   if maxVal < tempSignal(1,:)
+    %        maxVal = tempSignal(1,:);
+     %   end
+   % end
+    
+    for i = 1:length(tempSignal)
+       out_signal(1,:) = tempSignal(1,:) / maxVal;
+    end
+    
+    out_signal = tempSignal;
 end
 
 %this function breaks the signal into frames
@@ -227,18 +251,24 @@ function [newsignal] = randomise_frames(newsignal, framematrix, numframes, hopsi
 end
 
 %repeat the grain and apply attenuation throughout until outputLength is reached
+
 function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, AMFlag1, AMLevel1, FMFlag1)
 
     i = 1;
     outputSignal = zeros(1, outputLength);
+    loopCount = 1;
     
+    %each granular iteration - signal is changing signal until morphing is
+    %achieved
     while(i <= outputLength)
        tempSignal = newsignal;
+       %
        
-       
+       %%parameters change based on loopCount - can check against
+       %%nonchanging parameters to demonstrate parametric morphing
        %%%% apply attenuation parameters
-       if sprayFlag1 == 1
-          tempSignal = attenuateSpray(tempSignal, sprayLevel1);
+       if sprayFlag1 == 1 && loopCount <= 10
+          tempSignal = attenuateSpray(tempSignal, loopCount/10 * sprayLevel1);
        end
        
        if AMFlag1 == 1
@@ -262,13 +292,13 @@ function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sp
           end
        end
        
+       loopCount = loopCount + 1;
        
     end
 end
 
 %function spray
 function [spraySignal] = attenuateSpray(tempSignal, sprayLevel1)
-
     a = rand;
     b = rand;
     while(a > sprayLevel1)
@@ -281,7 +311,7 @@ function [spraySignal] = attenuateSpray(tempSignal, sprayLevel1)
     spraySignal = tempSignal(1, 1 + floor((a * length(tempSignal))) : floor(length(tempSignal) - (b * length(tempSignal))));
 end
 
-%Amplitude Modulation - the amplitude of grains is randomly varied based on
+%Amplitude Randomisation - the amplitude of grains is randomly varied based on
 %AMLevel
 function [AMSignal] = attenuateAM(tempSignal, AMLevel)
     a = rand;
@@ -296,15 +326,15 @@ function [AMSignal] = attenuateAM(tempSignal, AMLevel)
     AMSignal = tempSignal;
 end
 
+%FM Synthesis
 function [FMSignal] = attenuateFM(tempSignal)   
-    
     Fc = 1e3;         % carrier = 1MHz
     FS = 2.2*Fc;      % sampling frequency for output signal
     deviation = 1e2; % freq. deviation   
     FMSignal = fmmod(tempSignal, Fc, FS, deviation); %matlab frequency modulation function
-    
 end
 
+%add AM
 %morph the two signals using simple summation
 function [outputSignal] = morphSignals(signal1, signal2, outputLength)
     outputSignal = zeros(1, outputLength);
