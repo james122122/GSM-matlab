@@ -9,6 +9,8 @@
 % program uses old wavread function which requires an include, and the
 % Matlab Communications System Toolbox must be installed for FM Modulation
 
+%Could show Mark's GUI
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %speeds, phases, volume, and frequency,
@@ -70,6 +72,11 @@
 %signal = ampNormalise(signal); % not working at the moment. stuck on
 %division loop
 %signal2 = ampNormalise(signal2);
+signal = ampNormalise(signal);
+signal2 = ampNormalise(signal2);
+
+%should be decided based on max frequency / amplitude of message signal?
+figure; plot(signal); hold on; plot(attenuateRealAM(signal, 10000, fs),'r');
 
 %need to trim zeros from beginning + end when reading signals AND adjust
 signal = remove_low_vals(signal); % add threshhold value
@@ -107,15 +114,22 @@ outputLength = ceil(outputLengthInput);
 %divide spray level by 2 so that can take from both sides of grain
 sprayFlag1 = 1; %spray enabled 1 disabled 0
 sprayLevel1 = 0.5; % 0 (no spray) < sprayLevel1 < 0.5 (full spray)
+sprayLoops1 = 10;
+
 sprayFlag2 = 1;
 sprayLevel2 = 0.5;
+sprayLoops2 = 10;
+
 %this level is multiplied by a rand value, could also be skewed to increase
 %spray
 
-AMFlag1 = 0;
-AMLevel1 = 50 / 100; % 50% Amplitude Modulation
-AMFlag2 = 0;
+AMFlag1 = 1;
+AMLevel1 = 50 / 100; % 50% Amplitude Modulation - this means that the signal can be modulated to 0
+AMLoops1 = 10;
+
+AMFlag2 = 1;
 AMLevel2 = 50 / 100; % 50% Amplitude Modulation
+AMLoops2 = 10;
 
 FMFlag1 = 0;
 FMLevel1 = 50 / 100; % 50% Frequency Modulation
@@ -145,8 +159,8 @@ newsignal2 = newsignal2(newsignal2~=0);
 
 % needs to be 'generate signal' -> continually run attenuation on signal
 % until length of outputLength
-signalOutput = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, AMFlag1, AMLevel1, FMFlag1);
-signalOutput2 = generateSignal(newsignal2, grainSpace2, outputLength, sprayFlag2, sprayLevel2, AMFlag2, AMLevel2, FMFlag2);
+signalOutput = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, sprayLoops1, AMFlag1, AMLevel1, AMLoops1, FMFlag1);
+signalOutput2 = generateSignal(newsignal2, grainSpace2, outputLength, sprayFlag2, sprayLevel2, sprayLoops2, AMFlag2, AMLevel2, AMLoops2, FMFlag2);
 
 %parametricMorphing(signalOutput, signalOutput2, sprayFlag1, sprayFlag2,
 %sprayLevel2, sprayLevel2, AMFlag1, AMFlag2, AMLevel1, AMLevel2);
@@ -198,20 +212,20 @@ end
 
 function [out_signal] = ampNormalise(tempSignal)
     %find maxval in signal
-    out_signal = zeros(1, length(tempSignal));
+    %out_signal = zeros(length(tempSignal(:,1)), 1);
     
-    maxVal = max(tempSignal(1,:));
+    maxVal = max(tempSignal(:,1))
     %for i = 1:length(tempSignal)
     %   if maxVal < tempSignal(1,:)
     %        maxVal = tempSignal(1,:);
-     %   end
-   % end
+    %   end
+    % end
+   
+    out_signal(:,1) = tempSignal(:,1) / maxVal;
     
-    for i = 1:length(tempSignal)
-       out_signal(1,:) = tempSignal(1,:) / maxVal;
-    end
+    figure; plot(tempSignal);
+    hold on; plot(out_signal, 'r');
     
-    out_signal = tempSignal;
 end
 
 %this function breaks the signal into frames
@@ -252,7 +266,7 @@ end
 
 %repeat the grain and apply attenuation throughout until outputLength is reached
 
-function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, AMFlag1, AMLevel1, FMFlag1)
+function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sprayFlag, sprayLevel, sprayLoops, AMFlag, AMLevel, AMLoops, FMFlag)
 
     i = 1;
     outputSignal = zeros(1, outputLength);
@@ -262,20 +276,25 @@ function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sp
     %achieved
     while(i <= outputLength)
        tempSignal = newsignal;
-       %
-       
+       % 
        %%parameters change based on loopCount - can check against
        %%nonchanging parameters to demonstrate parametric morphing
        %%%% apply attenuation parameters
-       if sprayFlag1 == 1 && loopCount <= 10
-          tempSignal = attenuateSpray(tempSignal, loopCount/10 * sprayLevel1);
+       if sprayFlag == 1 && loopCount <= sprayLoops
+           for j = 1:loopNumber
+               %sprayLevel needs to vary - start Value - end Value
+               %check sprayLevel change and 
+               
+               tempSignal = attenuateSpray(tempSignal, loopCount/10 * sprayLevel);
+               
+           end
        end
        
-       if AMFlag1 == 1
-           tempSignal = attenuateAM(tempSignal, AMLevel1);
+       if AMFlag == 1 && loopCount <= AMLoops
+           tempSignal = attenuateAM(tempSignal, AMLevel);
        end
        
-       if FMFlag1 == 1
+       if FMFlag == 1
            tempSignal = attenuateFM(tempSignal);
        end
        
@@ -313,6 +332,7 @@ end
 
 %Amplitude Randomisation - the amplitude of grains is randomly varied based on
 %AMLevel
+
 function [AMSignal] = attenuateAM(tempSignal, AMLevel)
     a = rand;
     while(a > AMLevel) % a must be less than critical value
@@ -326,11 +346,26 @@ function [AMSignal] = attenuateAM(tempSignal, AMLevel)
     AMSignal = tempSignal;
 end
 
+function [AMSignal2] = attenuateRealAM(tempSignal, Fc, Fs)
+    % Carrier signal (Sc) = Acsin(2?fct)
+    % Message signal (Sm) = Amsin(2?fmt)
+    % m=Am/Ac
+    % Modulated Signal = (Ac+ Amsin(2 ?fmt))*sin(2 ?fct)
+    
+    % Fs = 8000;                        % Sampling rate is 8000 samples per second.
+    % Fc = 300;                         % Carrier frequency in Hz
+    % t = [0:.1*Fs]'/Fs;                % Sampling times for .1 second
+    % x = sin(20*pi*t);                 % Representation of the signal
+    % y = ammod(x,Fc,Fs);               % Modulate x to produce y.
+    %
+    AMSignal2 = ammod(tempSignal,Fc,Fs);
+end
+
 %FM Synthesis
 function [FMSignal] = attenuateFM(tempSignal)   
-    Fc = 1e3;         % carrier = 1MHz
+    Fc = 1e3;         % carrier = 1MHz - typical length is 100MHz/3m?
     FS = 2.2*Fc;      % sampling frequency for output signal
-    deviation = 1e2; % freq. deviation   
+    deviation = 1e2; % freq. deviation
     FMSignal = fmmod(tempSignal, Fc, FS, deviation); %matlab frequency modulation function
 end
 
