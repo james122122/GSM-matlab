@@ -67,11 +67,8 @@
 [signal fs bitdepth] = wavread('violin-a4.wav'); % [sample data - sample rate - number of bits per sample]
 [signal2 fs bitdepth] = wavread('trumpet.wav'); % [sample data - sample rate - number of bits per sample]
 
-%%%%%% need to normalise the signals
+%%%%%% need to normalise the signals:  between -1 and 1
 % amplitude normalisation - divide by the maximum
-%signal = ampNormalise(signal); % not working at the moment. stuck on
-%division loop
-%signal2 = ampNormalise(signal2);
 signal = ampNormalise(signal);
 signal2 = ampNormalise(signal2);
 
@@ -112,24 +109,29 @@ outputLengthInput = 400000; %output length of granular synthesis
 outputLength = ceil(outputLengthInput);
 
 %divide spray level by 2 so that can take from both sides of grain
-sprayFlag1 = 1; %spray enabled 1 disabled 0
+sprayFlag1 = 0; %spray enabled 1 disabled 0
 sprayLevel1 = 0.5; % 0 (no spray) < sprayLevel1 < 0.5 (full spray)
 sprayLoops1 = 10;
 
-sprayFlag2 = 1;
+sprayFlag2 = 0;
 sprayLevel2 = 0.5;
 sprayLoops2 = 10;
 
 %this level is multiplied by a rand value, could also be skewed to increase
 %spray
 
-AMFlag1 = 1;
+AMFlag1 = 0;
 AMLevel1 = 50 / 100; % 50% Amplitude Modulation - this means that the signal can be modulated to 0
 AMLoops1 = 10;
 
-AMFlag2 = 1;
+AMFlag2 = 0;
 AMLevel2 = 50 / 100; % 50% Amplitude Modulation
 AMLoops2 = 10;
+
+realAMFlag1 = 1;
+realAMFc1 = 10000; % carrier frequency
+realAMFlag2 = 1;
+realAMFc2 = 10000;
 
 FMFlag1 = 0;
 FMLevel1 = 50 / 100; % 50% Frequency Modulation
@@ -159,8 +161,8 @@ newsignal2 = newsignal2(newsignal2~=0);
 
 % needs to be 'generate signal' -> continually run attenuation on signal
 % until length of outputLength
-signalOutput = generateSignal(newsignal, grainSpace, outputLength, sprayFlag1, sprayLevel1, sprayLoops1, AMFlag1, AMLevel1, AMLoops1, FMFlag1);
-signalOutput2 = generateSignal(newsignal2, grainSpace2, outputLength, sprayFlag2, sprayLevel2, sprayLoops2, AMFlag2, AMLevel2, AMLoops2, FMFlag2);
+signalOutput = generateSignal(newsignal, fs, grainSpace, outputLength, sprayFlag1, sprayLevel1, sprayLoops1, AMFlag1, AMLevel1, AMLoops1, FMFlag1, realAMFlag1, realAMFc1);
+signalOutput2 = generateSignal(newsignal2, fs, grainSpace2, outputLength, sprayFlag2, sprayLevel2, sprayLoops2, AMFlag2, AMLevel2, AMLoops2, FMFlag2, realAMFlag2, realAMFc2);
 
 %parametricMorphing(signalOutput, signalOutput2, sprayFlag1, sprayFlag2,
 %sprayLevel2, sprayLevel2, AMFlag1, AMFlag2, AMLevel1, AMLevel2);
@@ -266,11 +268,12 @@ end
 
 %repeat the grain and apply attenuation throughout until outputLength is reached
 
-function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sprayFlag, sprayLevel, sprayLoops, AMFlag, AMLevel, AMLoops, FMFlag)
+function [outputSignal] = generateSignal(newsignal, Fs, grainSpace, outputLength, sprayFlag, sprayLevel, sprayLoops, AMFlag, AMLevel, AMLoops, FMFlag, realAMFlag, realAMFc)
 
     i = 1;
     outputSignal = zeros(1, outputLength);
     loopCount = 1;
+    loopNumber = 10;
     
     %each granular iteration - signal is changing signal until morphing is
     %achieved
@@ -296,6 +299,10 @@ function [outputSignal] = generateSignal(newsignal, grainSpace, outputLength, sp
        
        if FMFlag == 1
            tempSignal = attenuateFM(tempSignal);
+       end
+       
+       if realAMFlag == 1
+           tempSignal = attenuateRealAM(tempSignal,realAMFc, Fs);
        end
        
         %add trailing zeros equal to grainspacing
