@@ -73,7 +73,7 @@ signal = ampNormalise(signal);
 signal2 = ampNormalise(signal2);
 
 %should be decided based on max frequency / amplitude of message signal?
-figure; plot(signal); hold on; plot(attenuateRealAM(signal, 10000, fs),'r');
+%figure; plot(signal); hold on; plot(attenuateRealAM(signal, 11000, fs),'r');
 
 %need to trim zeros from beginning + end when reading signals AND adjust
 signal = remove_low_vals(signal); % add threshhold value
@@ -109,22 +109,22 @@ outputLengthInput = 400000; %output length of granular synthesis
 outputLength = ceil(outputLengthInput);
 
 %divide spray level by 2 so that can take from both sides of grain
-sprayFlag1 = 0; %spray enabled 1 disabled 0
+sprayFlag1 = 1; %spray enabled 1 disabled 0
 sprayLevel1 = 0.5; % 0 (no spray) < sprayLevel1 < 0.5 (full spray)
 sprayLoops1 = 10;
 
-sprayFlag2 = 0;
+sprayFlag2 = 1;
 sprayLevel2 = 0.5;
 sprayLoops2 = 10;
 
 %this level is multiplied by a rand value, could also be skewed to increase
 %spray
 
-AMFlag1 = 0;
+AMFlag1 = 1;
 AMLevel1 = 50 / 100; % 50% Amplitude Modulation - this means that the signal can be modulated to 0
 AMLoops1 = 10;
 
-AMFlag2 = 0;
+AMFlag2 = 1;
 AMLevel2 = 50 / 100; % 50% Amplitude Modulation
 AMLoops2 = 10;
 
@@ -133,10 +133,13 @@ realAMFc1 = 10000; % carrier frequency
 realAMFlag2 = 1;
 realAMFc2 = 10000;
 
-FMFlag1 = 0;
+FMFlag1 = 1;
 FMLevel1 = 50 / 100; % 50% Frequency Modulation
-FMFlag2 = 0;
+FMFlag2 = 1;
 FMLevel2 = 50 / 100; % 50% Frequency Modulation
+
+% modulation index parameter??
+% m=Frequency deviation - Modulation frequency
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -269,7 +272,6 @@ end
 %repeat the grain and apply attenuation throughout until outputLength is reached
 
 function [outputSignal] = generateSignal(newsignal, Fs, grainSpace, outputLength, sprayFlag, sprayLevel, sprayLoops, AMFlag, AMLevel, AMLoops, FMFlag, realAMFlag, realAMFc)
-
     i = 1;
     outputSignal = zeros(1, outputLength);
     loopCount = 1;
@@ -298,10 +300,10 @@ function [outputSignal] = generateSignal(newsignal, Fs, grainSpace, outputLength
        end
        
        if FMFlag == 1
-           tempSignal = attenuateFM(tempSignal);
+           tempSignal = attenuateFM(tempSignal, Fs);
        end
        
-       if realAMFlag == 1
+       if realAMFlag == 0
            tempSignal = attenuateRealAM(tempSignal,realAMFc, Fs);
        end
        
@@ -317,7 +319,6 @@ function [outputSignal] = generateSignal(newsignal, Fs, grainSpace, outputLength
               break;
           end
        end
-       
        loopCount = loopCount + 1;
        
     end
@@ -365,15 +366,18 @@ function [AMSignal2] = attenuateRealAM(tempSignal, Fc, Fs)
     % x = sin(20*pi*t);                 % Representation of the signal
     % y = ammod(x,Fc,Fs);               % Modulate x to produce y.
     %
-    AMSignal2 = ammod(tempSignal,Fc,Fs);
+    AMSignal2 = ammod(tempSignal, Fc, Fs);
 end
 
 %FM Synthesis
-function [FMSignal] = attenuateFM(tempSignal)   
-    Fc = 1e3;         % carrier = 1MHz - typical length is 100MHz/3m?
-    FS = 2.2*Fc;      % sampling frequency for output signal
-    deviation = 1e2; % freq. deviation
-    FMSignal = fmmod(tempSignal, Fc, FS, deviation); %matlab frequency modulation function
+function [FMSignal] = attenuateFM(tempSignal, Fs)   
+   % Fs = 2.2 * Fc;      % sampling frequency for output signal 
+    % Fc = Fs / 2.2; % carrier ~ 44000 / 2.2
+    Fc = 15 * 1000;
+    deviation = 7.5 * 1000; % freq. deviation 2kHz
+    FMSignal = fmmod(tempSignal, Fc, Fs, deviation); %matlab frequency modulation function
+    %m=Frequency deviationModulation frequency
+    %Upper modulating frequency: 15 kHz
 end
 
 %add AM
