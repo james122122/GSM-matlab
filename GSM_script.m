@@ -295,15 +295,15 @@ function [outputSignal] = generateSignal(newsignal, Fs, grainSpace, outputLength
            end
        end
        
-       if AMFlag == 1 && loopCount <= AMLoops
+       if AMFlag == 0 && loopCount <= AMLoops
            tempSignal = attenuateAM(tempSignal, AMLevel);
        end
        
-       if FMFlag == 1
+       if FMFlag == 0
            tempSignal = attenuateFM(tempSignal, Fs);
        end
        
-       if realAMFlag == 0
+       if realAMFlag == 1
            tempSignal = attenuateRealAM(tempSignal,realAMFc, Fs);
        end
        
@@ -367,6 +367,7 @@ function [AMSignal2] = attenuateRealAM(tempSignal, Fc, Fs)
     % y = ammod(x,Fc,Fs);               % Modulate x to produce y.
     %
     AMSignal2 = ammod(tempSignal, Fc, Fs);
+%    AMSignal2 = amdemod(AMSignal2, Fc, Fs);
 end
 
 %FM Synthesis
@@ -374,10 +375,16 @@ function [FMSignal] = attenuateFM(tempSignal, Fs)
    % Fs = 2.2 * Fc;      % sampling frequency for output signal 
     % Fc = Fs / 2.2; % carrier ~ 44000 / 2.2
     Fc = 15 * 1000;
-    deviation = 7.5 * 1000; % freq. deviation 2kHz
+    deviation = 25 * 1000; % freq. deviation 2kHz % must always be greater than the carrier~~
+    % 10 kHz deviation is equivalent to a 5 KBPS change in bit rate
     FMSignal = fmmod(tempSignal, Fc, Fs, deviation); %matlab frequency modulation function
+    FMSignal = fmdemod(FMSignal, Fc, Fs, deviation);
     %m=Frequency deviationModulation frequency
     %Upper modulating frequency: 15 kHz
+    
+    % max frequency should be half sampling frequency : 44100 / 2 = 22050
+    % CBR=2(\Delta f+f_{m}) - Carson's rule: where Delta f is frequency
+    % deviation, and f_{m} is the max frequency
 end
 
 %add AM
